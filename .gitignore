@@ -27,3 +27,4 @@ replay_pid*
 .claude/
 .idea/
 .gradle/
+*.iml
