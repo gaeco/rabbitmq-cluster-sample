@@ -55,14 +55,15 @@ Because these are separate machines (not one host), each node uses the **default
 
 Key facts:
 - **Version:** installs `rabbitmq-server` straight from Ubuntu's own apt repo (`apt-get install rabbitmq-server`) — **RabbitMQ 3.12.x** on stock 24.04, Erlang pulled in as a dependency. This is deliberately **air-gapped friendly**: no external RabbitMQ repos, signing keys, or offline bundles. RabbitMQ 4.x is *not* in Ubuntu's archive and would need the Team RabbitMQ repo, which an air-gapped host can't reach.
-- **Config** lives in `native-cluster/cluster.env`: `NODE_IPS`/`NODE_HOSTS` (position-matched), `SEED_INDEX`, the shared `ERLANG_COOKIE`, and the admin `RABBITMQ_ADMIN_USER`/`RABBITMQ_ADMIN_PASS`. Change the cookie and admin password before real use.
+- **Config** lives in `native-cluster/cluster.env`: `NODE_IPS`/`NODE_HOSTS` (position-matched), `SEED_INDEX`, the shared `ERLANG_COOKIE`, the admin `RABBITMQ_ADMIN_USER`/`RABBITMQ_ADMIN_PASS`, and `RABBITMQ_HOME`. Change the cookie and admin password before real use.
+- **Data directory:** RabbitMQ's home (Erlang cookie, mnesia data, logs) is relocated from the default `/var/lib/rabbitmq` to `RABBITMQ_HOME` (default `/data/rabbitmq`) by `02-configure.sh` — via the rabbitmq user's home, `rabbitmq-env.conf`, and a systemd unit drop-in. That path must exist on each node.
 - Scripts **auto-detect which node they run on** by matching the host's IP against `NODE_IPS` (`lib.sh`); override with `SELF_INDEX=<0-based>`.
 - `guest` is loopback-only, so remote AMQP/management access uses the admin user from `create-admin.sh` (not `guest`).
-- Ports between nodes: `4369` (epmd) + `25672` (inter-node) for clustering; `5672` (AMQP) + `15672` (management UI) for clients. `02-configure.sh` opens these in `ufw` only if ufw is active.
+- Ports between nodes: `4369` (epmd) + `25672` (inter-node) for clustering; `5672` (AMQP) + `15672` (management UI) for clients. The nodes run no local firewall, so `02-configure.sh` doesn't open ports — the network path between nodes must allow them.
 
 Scripts (all in `native-cluster/`, run with `sudo` where they change the system):
 - `01-install.sh` — `apt-get install rabbitmq-server`. Run on **every** node.
-- `02-configure.sh` — hostname, `/etc/hosts` (all three nodes), shared Erlang cookie, `rabbitmq.conf` (classic_config peer discovery, generated from `cluster.env`), management plugin, firewall, restart. Run on **every** node, **seed first**. Note: it clears `/var/lib/rabbitmq/mnesia`, so it's for a **fresh build**, not reconfiguring a cluster with data.
+- `02-configure.sh` — hostname, `/etc/hosts` (all three nodes), data-dir relocation (`RABBITMQ_HOME`), shared Erlang cookie, `rabbitmq.conf` (classic_config peer discovery, generated from `cluster.env`), management plugin, restart. Run on **every** node, **seed first**. Note: it clears `${RABBITMQ_HOME}/mnesia`, so it's for a **fresh build**, not reconfiguring a cluster with data.
 - `create-admin.sh` — create the cluster-wide admin user. Run **once**, on the seed node.
 - `setup-test-queue.sh` — declare the app's exchange/queue/binding (optionally `--publish` a test message) via the management HTTP API. Idempotent; matches `RabbitConfig`. Run **once**, anywhere, after `create-admin.sh`.
 - `03-verify.sh` — print `cluster_status`.

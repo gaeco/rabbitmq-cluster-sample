@@ -4,13 +4,16 @@
 #
 #   sudo ./02-configure.sh
 #
-# It sets the hostname, makes all three node names resolvable, installs the
-# shared Erlang cookie, writes rabbitmq.conf (static/classic_config peer
-# discovery, same as the Podman setup) + enables the management plugin, opens
-# the firewall ports, and restarts the broker.
+# It sets the hostname, makes all three node names resolvable, relocates the data
+# directory, installs the shared Erlang cookie, writes rabbitmq.conf
+# (static/classic_config peer discovery, same as the Podman setup) + enables the
+# management plugin, and restarts the broker. (No local firewall is configured on
+# these nodes, so no ports are opened here.)
 source "$(dirname "$0")/lib.sh"
 require_root
 detect_self
+
+RMQ_HOME="${RABBITMQ_HOME:-/var/lib/rabbitmq}"
 
 log "this is node #${SELF_INDEX}: ${SELF_HOST} (${SELF_IP})"
 
@@ -40,20 +43,47 @@ sed -i "/${MARK_BEGIN}/,/${MARK_END}/d" /etc/hosts
 log "stopping rabbitmq-server ..."
 systemctl stop rabbitmq-server || true
 
+# --- relocate RabbitMQ's home / data directory ----------------------------
+# Move the cookie, mnesia data and logs to RMQ_HOME. We set the rabbitmq user's
+# home (so CLI tools find the cookie), point the data/log dirs via
+# rabbitmq-env.conf, and override the systemd unit's HOME/WorkingDirectory (and
+# ReadWritePaths, in case the packaged unit sandboxes the filesystem).
+log "relocating RabbitMQ home/data to ${RMQ_HOME} ..."
+install -d -o rabbitmq -g rabbitmq -m 0750 "${RMQ_HOME}"
+usermod -d "${RMQ_HOME}" rabbitmq
+
+install -d -m 0755 /etc/rabbitmq
+{
+  echo "# Managed by native-cluster/02-configure.sh — do not edit by hand."
+  echo "HOME=${RMQ_HOME}"
+  echo "RABBITMQ_MNESIA_BASE=${RMQ_HOME}/mnesia"
+  echo "RABBITMQ_LOG_BASE=${RMQ_HOME}/log"
+} > /etc/rabbitmq/rabbitmq-env.conf
+chmod 644 /etc/rabbitmq/rabbitmq-env.conf
+
+install -d -m 0755 /etc/systemd/system/rabbitmq-server.service.d
+{
+  echo "# Managed by native-cluster/02-configure.sh"
+  echo "[Service]"
+  echo "Environment=HOME=${RMQ_HOME}"
+  echo "WorkingDirectory=${RMQ_HOME}"
+  echo "ReadWritePaths=${RMQ_HOME}"
+} > /etc/systemd/system/rabbitmq-server.service.d/override.conf
+systemctl daemon-reload
+
 # --- shared Erlang cookie -------------------------------------------------
 if [[ "${ERLANG_COOKIE}" == *CHANGE_ME* ]]; then
   warn "ERLANG_COOKIE in cluster.env still has a placeholder value — set a real secret!"
 fi
 log "installing shared Erlang cookie ..."
-COOKIE_FILE=/var/lib/rabbitmq/.erlang.cookie
-install -d -o rabbitmq -g rabbitmq -m 0755 /var/lib/rabbitmq
+COOKIE_FILE="${RMQ_HOME}/.erlang.cookie"
 printf '%s' "${ERLANG_COOKIE}" > "${COOKIE_FILE}"
 chown rabbitmq:rabbitmq "${COOKIE_FILE}"
 chmod 400 "${COOKIE_FILE}"
 
 # A stale node dir from the package's first boot (rabbit@<old-hostname>) is
 # harmless, but clear it so this node starts clean under its new name.
-rm -rf /var/lib/rabbitmq/mnesia 2>/dev/null || true
+rm -rf "${RMQ_HOME}/mnesia" 2>/dev/null || true
 
 # --- rabbitmq.conf --------------------------------------------------------
 log "writing /etc/rabbitmq/rabbitmq.conf ..."
@@ -83,17 +113,10 @@ log "enabling the management plugin ..."
 echo "[rabbitmq_management]." > /etc/rabbitmq/enabled_plugins
 chmod 644 /etc/rabbitmq/enabled_plugins
 
-# --- firewall (only if ufw is active) -------------------------------------
-if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
-  log "opening cluster ports in ufw ..."
-  ufw allow 4369/tcp   >/dev/null   # epmd (Erlang port mapper)
-  ufw allow 25672/tcp  >/dev/null   # inter-node / CLI Erlang distribution
-  ufw allow 5672/tcp   >/dev/null   # AMQP
-  ufw allow 15672/tcp  >/dev/null   # management UI
-else
-  warn "ufw not active — make sure these TCP ports are reachable between nodes: \
-4369 (epmd), 25672 (inter-node), 5672 (AMQP), 15672 (management UI)."
-fi
+# --- ports ----------------------------------------------------------------
+# No local firewall is configured on these nodes, so nothing to open here.
+# Ensure the network path between nodes allows: 4369 (epmd), 25672 (inter-node),
+# 5672 (AMQP), 15672 (management UI).
 
 # --- start ----------------------------------------------------------------
 log "starting rabbitmq-server ..."

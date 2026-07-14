@@ -50,9 +50,10 @@ Set SELF_INDEX=<0-based index> to override."
   export SELF_INDEX SELF_HOST SELF_IP SEED_HOST
 }
 
-# rabbitmqctl / rabbitmq-plugins that always find the shared cookie.
-rmqctl()    { sudo -u rabbitmq env HOME=/var/lib/rabbitmq rabbitmqctl "$@"; }
-rmqplugin() { sudo -u rabbitmq env HOME=/var/lib/rabbitmq rabbitmq-plugins "$@"; }
+# rabbitmqctl / rabbitmq-plugins that always find the shared cookie in the
+# rabbitmq user's home (relocated to RABBITMQ_HOME by 02-configure.sh).
+rmqctl()    { sudo -u rabbitmq env HOME="${RABBITMQ_HOME:-/var/lib/rabbitmq}" rabbitmqctl "$@"; }
+rmqplugin() { sudo -u rabbitmq env HOME="${RABBITMQ_HOME:-/var/lib/rabbitmq}" rabbitmq-plugins "$@"; }
 
 # Block until the local broker is running and responsive.
 wait_for_broker() {

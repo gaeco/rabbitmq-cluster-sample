@@ -98,8 +98,8 @@ Management UI (log in with the admin user from `cluster.env`):
 | 5672  | AMQP (clients) |
 | 15672 | management UI (clients) |
 
-`02-configure.sh` opens these in `ufw` **only if ufw is already active**; otherwise
-make sure your network/security groups allow them.
+These nodes run no local firewall, so `02-configure.sh` doesn't touch one — just
+make sure the network path / security groups between nodes allow these ports.
 
 ## Notes
 
@@ -110,7 +110,12 @@ make sure your network/security groups allow them.
 - The shared `ERLANG_COOKIE` and matching hostname list are what let the cluster
   form. Changing hostnames means updating `NODE_HOSTS` in `cluster.env` (the
   `rabbitmq.conf` node list and `/etc/hosts` are generated from it).
-- `02-configure.sh` clears `/var/lib/rabbitmq/mnesia` so each node starts clean
+- **Data directory:** `02-configure.sh` relocates RabbitMQ's home (Erlang cookie,
+  mnesia data, logs) to `RABBITMQ_HOME` from `cluster.env` — default
+  `/data/rabbitmq` — via the rabbitmq user's home, `rabbitmq-env.conf`
+  (`RABBITMQ_MNESIA_BASE`/`RABBITMQ_LOG_BASE`), and a systemd unit drop-in. Make
+  sure that path exists on a suitable disk/mount on each node.
+- `02-configure.sh` clears `${RABBITMQ_HOME}/mnesia` so each node starts clean
   under its new node name. **This wipes local broker data** — intended for a
   fresh build, not for reconfiguring a cluster that already holds data.
 - `guest` is loopback-only by design; use the admin user from `create-admin.sh`
