@@ -1,0 +1,73 @@
+name: rabbitmq-cluster
+
+# 3-node RabbitMQ cluster for local Podman.
+# All nodes share one Erlang cookie and form a cluster via static peer
+# discovery (see rabbitmq/rabbitmq.conf). Each node keeps container ports at
+# the RabbitMQ defaults (5672 AMQP, 15672 management) and gets a distinct HOST
+# port so they can coexist on a single host.
+
+x-rabbitmq-common: &rabbitmq-common
+  image: docker.io/library/rabbitmq:3-management
+  environment:
+    RABBITMQ_ERLANG_COOKIE: "local-cluster-cookie"
+  networks:
+    - rabbitmq
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+    interval: 15s
+    timeout: 10s
+    retries: 5
+    start_period: 30s
+
+services:
+  rabbit1:
+    <<: *rabbitmq-common
+    container_name: rabbit1
+    hostname: rabbit1
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI -> http://localhost:15672
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro,z
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro,z
+      - rabbit1-data:/var/lib/rabbitmq
+
+  rabbit2:
+    <<: *rabbitmq-common
+    container_name: rabbit2
+    hostname: rabbit2
+    depends_on:
+      rabbit1:
+        condition: service_healthy
+    ports:
+      - "5673:5672"    # AMQP
+      - "15673:15672"  # Management UI -> http://localhost:15673
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro,z
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro,z
+      - rabbit2-data:/var/lib/rabbitmq
+
+  rabbit3:
+    <<: *rabbitmq-common
+    container_name: rabbit3
+    hostname: rabbit3
+    depends_on:
+      rabbit1:
+        condition: service_healthy
+    ports:
+      - "5674:5672"    # AMQP
+      - "15674:15672"  # Management UI -> http://localhost:15674
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro,z
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro,z
+      - rabbit3-data:/var/lib/rabbitmq
+
+networks:
+  rabbitmq:
+    driver: bridge
+
+volumes:
+  rabbit1-data:
+  rabbit2-data:
+  rabbit3-data:
