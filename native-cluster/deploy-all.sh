@@ -21,13 +21,6 @@ ssh_node() { ssh "${SSH_OPTS[@]}" "${SSH_USER}@$1" "$2"; }
 push_dir() {
   ssh_node "$1" "rm -rf ${REMOTE_DIR} && mkdir -p ${REMOTE_DIR}"
   scp "${SSH_OPTS[@]}" -q "${LIB_DIR}"/*.sh "${LIB_DIR}/cluster.env" "${SSH_USER}@$1:${REMOTE_DIR}/"
-  # For offline-debs installs, also ship the pre-staged .deb bundle.
-  if [[ "${INSTALL_SOURCE:-offline-debs}" == "offline-debs" ]]; then
-    [[ -d "${LIB_DIR}/packages" ]] || die "INSTALL_SOURCE=offline-debs but ${LIB_DIR}/packages is missing. \
-Run fetch-packages.sh on an internet-connected host first."
-    ssh_node "$1" "mkdir -p ${REMOTE_DIR}/packages"
-    scp "${SSH_OPTS[@]}" -q "${LIB_DIR}"/packages/*.deb "${SSH_USER}@$1:${REMOTE_DIR}/packages/"
-  fi
 }
 
 # Order the nodes with the seed first.

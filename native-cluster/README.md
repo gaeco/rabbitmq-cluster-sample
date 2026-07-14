@@ -4,10 +4,12 @@ Bash scripts to stand up a **3-node RabbitMQ cluster** on three **Ubuntu 24.04**
 hosts with **no containers** — Erlang and RabbitMQ are installed as native apt
 packages.
 
-> **Air-gapped:** the nodes have no internet access (only an internal apt
-> mirror). These scripts never contact the RabbitMQ key servers or
-> `ppa*.rabbitmq.com`. Packages come from either a pre-staged local `.deb`
-> bundle (default) or your internal apt mirror. See **Installing offline** below.
+> **Air-gapped:** the nodes have no internet access, only an internal apt
+> mirror. RabbitMQ is installed with a plain `apt-get install rabbitmq-server`
+> from that mirror — no external RabbitMQ repos, signing keys, or offline
+> bundles. This installs the version Ubuntu 24.04 ships (**RabbitMQ 3.12.x**,
+> Erlang 25); newer releases like 4.x are only in the Team RabbitMQ repo, which
+> an air-gapped host can't reach.
 
 This is the bare-metal counterpart to the Podman `compose.yaml` in the repo root.
 It uses the same idea for cluster formation: **static (`classic_config`) peer
@@ -30,36 +32,12 @@ All settings (IPs, hostnames, Erlang cookie, admin credentials) live in
 
 - `cluster.env` — configuration (node list, cookie, admin user).
 - `lib.sh` — shared helpers; auto-detects which node a script runs on by matching the machine's IP against `NODE_IPS`.
-- `fetch-packages.sh` — run on an **internet-connected** staging host to download the RabbitMQ + Erlang `.deb` bundle into `packages/`. Not run on the nodes.
-- `01-install.sh` — install Erlang + RabbitMQ (pinned to `RABBITMQ_VERSION`, default **4.3.2**, and `apt-mark hold`ed) from the offline bundle or internal mirror. Run on **every** node.
+- `01-install.sh` — `apt-get install rabbitmq-server` (Erlang pulled in automatically). Run on **every** node.
 - `02-configure.sh` — hostname, `/etc/hosts`, shared cookie, `rabbitmq.conf`, management plugin, firewall, restart. Run on **every** node (seed first).
 - `03-verify.sh` — print `cluster_status`. Run anywhere.
 - `create-admin.sh` — create the cluster-wide admin user. Run **once**, on the seed node.
+- `setup-test-queue.sh` — declare the Spring Boot app's exchange/queue/binding (and optionally publish a test message) via the management API. Run **once**, anywhere, after `create-admin.sh`.
 - `deploy-all.sh` — optional orchestrator that SSHes into all three nodes and runs the above in order.
-
-## Installing offline (air-gapped)
-
-`INSTALL_SOURCE` in `cluster.env` picks where packages come from:
-
-- **`offline-debs`** (default) — install from a local `.deb` bundle. Build it once
-  on an internet-connected **Ubuntu 24.04 (noble) amd64** staging host (must match
-  the nodes' release + architecture):
-
-  ```bash
-  cd native-cluster
-  sudo ./fetch-packages.sh        # downloads RabbitMQ 4.3.2 + Erlang + deps into packages/
-  ```
-
-  Then transfer the whole `native-cluster/` directory (now including `packages/`)
-  to each air-gapped node — via `deploy-all.sh`, or manually (USB/scp within the
-  enclave). `01-install.sh` installs from `packages/` with no internet; base OS
-  dependencies (libc, etc.) come from the internal apt mirror.
-
-- **`apt-repo`** — skip the bundle and install straight from the internal apt
-  mirror, if it already carries `rabbitmq-server` + `erlang` for noble. No
-  `fetch-packages.sh` needed.
-
-The `packages/` directory is git-ignored (it holds binaries).
 
 ## Option A — orchestrated from one control machine
 
@@ -89,6 +67,7 @@ Then **once**, on the seed node:
 ```bash
 sudo ./create-admin.sh
 sudo ./03-verify.sh
+./setup-test-queue.sh --publish   # declare the app's queue + send a test message
 ```
 
 `02-configure.sh` figures out which node it's on from the host's IP. If a node's
@@ -124,12 +103,10 @@ make sure your network/security groups allow them.
 
 ## Notes
 
-- **Version pin:** `RABBITMQ_VERSION` in `cluster.env` (default `4.3.2`) is
-  prefix-matched against the apt repo, so it resolves to the exact package (e.g.
-  `4.3.2-1`), installs it, and `apt-mark hold`s it so upgrades won't move off it.
-  Erlang is installed unpinned from the same repo — that repo only carries Erlang
-  releases compatible with the RabbitMQ it ships, so this is normally fine. Set
-  `RABBITMQ_VERSION=""` to install the latest instead.
+- **Version:** this installs whatever `rabbitmq-server` the internal apt mirror
+  carries — on stock Ubuntu 24.04 that's **3.12.x** (Erlang 25). RabbitMQ 4.x is
+  not in Ubuntu's archive; getting it would require the Team RabbitMQ apt repo,
+  which an air-gapped host can't reach.
 - The shared `ERLANG_COOKIE` and matching hostname list are what let the cluster
   form. Changing hostnames means updating `NODE_HOSTS` in `cluster.env` (the
   `rabbitmq.conf` node list and `/etc/hosts` are generated from it).
