@@ -63,7 +63,7 @@ Key facts:
 
 Scripts (all in `native-cluster/`, run with `sudo` where they change the system):
 - `01-install.sh` — `apt-get install rabbitmq-server`. Run on **every** node.
-- `02-configure.sh` — hostname, `/etc/hosts` (all three nodes), data-dir relocation (`RABBITMQ_HOME`), shared Erlang cookie, `rabbitmq.conf` (classic_config peer discovery, generated from `cluster.env`), management plugin, restart. Run on **every** node, **seed first**. Note: it clears `${RABBITMQ_HOME}/mnesia`, so it's for a **fresh build**, not reconfiguring a cluster with data.
+- `02-configure.sh` — `/etc/hosts` (all three nodes), pinned `RABBITMQ_NODENAME` (`rabbit@rabbitN`, so the OS hostname is left unchanged), data-dir relocation (`RABBITMQ_HOME`), shared Erlang cookie, `rabbitmq.conf` (classic_config peer discovery, generated from `cluster.env`), management plugin, restart. Run on **every** node, **seed first**. Note: it clears `${RABBITMQ_HOME}/mnesia`, so it's for a **fresh build**, not reconfiguring a cluster with data.
 - `create-admin.sh` — create the cluster-wide admin user. Run **once**, on the seed node.
 - `setup-test-queue.sh` — declare the app's exchange/queue/binding (optionally `--publish` a test message) via the management HTTP API. Idempotent; matches `RabbitConfig`. Run **once**, anywhere, after `create-admin.sh`.
 - `03-verify.sh` — print `cluster_status`.

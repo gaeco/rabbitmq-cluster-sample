@@ -4,7 +4,8 @@
 #
 #   sudo ./02-configure.sh
 #
-# It sets the hostname, makes all three node names resolvable, relocates the data
+# It makes all three node names resolvable (/etc/hosts), pins this node's
+# RabbitMQ node name (leaving the OS hostname unchanged), relocates the data
 # directory, installs the shared Erlang cookie, writes rabbitmq.conf
 # (static/classic_config peer discovery, same as the Podman setup) + enables the
 # management plugin, and restarts the broker. (No local firewall is configured on
@@ -17,11 +18,9 @@ RMQ_HOME="${RABBITMQ_HOME:-/var/lib/rabbitmq}"
 
 log "this is node #${SELF_INDEX}: ${SELF_HOST} (${SELF_IP})"
 
-# --- hostname -------------------------------------------------------------
-# RabbitMQ's node name is rabbit@<short-hostname>, so the hostname must match
-# NODE_HOSTS for classic_config peer discovery to line up.
-log "setting hostname to ${SELF_HOST} ..."
-hostnamectl set-hostname "${SELF_HOST}"
+# NOTE: the OS hostname is left untouched. Instead we pin RABBITMQ_NODENAME
+# below (in rabbitmq-env.conf) so this node is rabbit@${SELF_HOST} regardless of
+# the machine's hostname, and /etc/hosts makes those names resolvable.
 
 # --- /etc/hosts -----------------------------------------------------------
 # Every node must resolve every node name to its real (non-loopback) IP so the
@@ -58,6 +57,9 @@ install -d -m 0755 /etc/rabbitmq
   echo "HOME=${RMQ_HOME}"
   echo "RABBITMQ_MNESIA_BASE=${RMQ_HOME}/mnesia"
   echo "RABBITMQ_LOG_BASE=${RMQ_HOME}/log"
+  # Pin the node name so it doesn't depend on the OS hostname. Uses a short name
+  # (rabbit@rabbit1), resolved to this node's IP via the /etc/hosts block above.
+  echo "RABBITMQ_NODENAME=rabbit@${SELF_HOST}"
 } > /etc/rabbitmq/rabbitmq-env.conf
 chmod 644 /etc/rabbitmq/rabbitmq-env.conf
 

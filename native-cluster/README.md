@@ -33,7 +33,7 @@ All settings (IPs, hostnames, Erlang cookie, admin credentials) live in
 - `cluster.env` — configuration (node list, cookie, admin user).
 - `lib.sh` — shared helpers; auto-detects which node a script runs on by matching the machine's IP against `NODE_IPS`.
 - `01-install.sh` — `apt-get install rabbitmq-server` (Erlang pulled in automatically). Run on **every** node.
-- `02-configure.sh` — hostname, `/etc/hosts`, shared cookie, `rabbitmq.conf`, management plugin, firewall, restart. Run on **every** node (seed first).
+- `02-configure.sh` — `/etc/hosts`, pinned `RABBITMQ_NODENAME` (OS hostname left unchanged), data-dir relocation, shared cookie, `rabbitmq.conf`, management plugin, restart. Run on **every** node (seed first).
 - `03-verify.sh` — print `cluster_status`. Run anywhere.
 - `create-admin.sh` — create the cluster-wide admin user. Run **once**, on the seed node.
 - `setup-test-queue.sh` — declare the Spring Boot app's exchange/queue/binding (and optionally publish a test message) via the management API. Run **once**, anywhere, after `create-admin.sh`.
