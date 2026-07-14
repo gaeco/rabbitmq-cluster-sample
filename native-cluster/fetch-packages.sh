@@ -22,23 +22,32 @@ log "staging host: Ubuntu ${UBUNTU_CODENAME} target, arch ${DPKG_ARCH}."
 PKG_DIR="${LIB_DIR}/packages"
 mkdir -p "${PKG_DIR}"
 
-KEYRING_DIR=/usr/share/keyrings
-log "installing prerequisites + signing keys (staging host only) ..."
+# The staging host's release/arch must match the target nodes, or the .debs
+# (and their resolved dependency set) won't install there.
+HOST_CODENAME="$(. /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}")"
+if [[ "${HOST_CODENAME}" != "${UBUNTU_CODENAME}" ]]; then
+  die "this staging host is Ubuntu '${HOST_CODENAME:-unknown}', but the target nodes are '${UBUNTU_CODENAME}'.
+Run fetch-packages.sh on an Ubuntu ${UBUNTU_CODENAME} amd64 host so the bundle matches the nodes
+(or set UBUNTU_CODENAME in cluster.env if the nodes are really '${HOST_CODENAME}')."
+fi
+[[ "${DPKG_ARCH}" == "amd64" ]] || warn "staging host arch is ${DPKG_ARCH}, not amd64 — make sure it matches the target nodes."
+
+KEYRING=/usr/share/keyrings/com.rabbitmq.team.gpg
+log "installing prerequisites + signing key (staging host only) ..."
 apt-get update -y
 apt-get install -y curl gnupg apt-transport-https
+# Current Team RabbitMQ setup uses a single signing key for both repos.
 curl -1sLf "https://keys.openpgp.org/vks/v1/by-fingerprint/0A9AF2115F4687BD29803A206B73A36E6026DFCA" \
-  | gpg --dearmor | tee "${KEYRING_DIR}/com.rabbitmq.team.gpg" >/dev/null
-curl -1sLf "https://github.com/rabbitmq/signing-keys/releases/download/3.0/cloudsmith.rabbitmq-erlang.E495BB49CC4BBE5B.key" \
-  | gpg --dearmor | tee "${KEYRING_DIR}/rabbitmq.E495BB49CC4BBE5B.gpg" >/dev/null
-curl -1sLf "https://github.com/rabbitmq/signing-keys/releases/download/3.0/cloudsmith.rabbitmq-server.9F4587F226208342.key" \
-  | gpg --dearmor | tee "${KEYRING_DIR}/rabbitmq.9F4587F226208342.gpg" >/dev/null
+  | gpg --dearmor | tee "${KEYRING}" >/dev/null
 
 log "adding RabbitMQ apt repositories for ${UBUNTU_CODENAME} ..."
+# Team RabbitMQ's current mirrors are deb1/deb2.rabbitmq.com (the old
+# ppa1/ppa2.rabbitmq.com layout is retired and serves no packages).
 tee /etc/apt/sources.list.d/rabbitmq.list >/dev/null <<EOF
-deb [signed-by=${KEYRING_DIR}/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-erlang/deb/ubuntu ${UBUNTU_CODENAME} main
-deb [signed-by=${KEYRING_DIR}/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa2.rabbitmq.com/rabbitmq/rabbitmq-erlang/deb/ubuntu ${UBUNTU_CODENAME} main
-deb [signed-by=${KEYRING_DIR}/rabbitmq.9F4587F226208342.gpg] https://ppa1.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu ${UBUNTU_CODENAME} main
-deb [signed-by=${KEYRING_DIR}/rabbitmq.9F4587F226208342.gpg] https://ppa2.rabbitmq.com/rabbitmq/rabbitmq-server/deb/ubuntu ${UBUNTU_CODENAME} main
+deb [arch=amd64 signed-by=${KEYRING}] https://deb1.rabbitmq.com/rabbitmq-erlang/ubuntu/${UBUNTU_CODENAME} ${UBUNTU_CODENAME} main
+deb [arch=amd64 signed-by=${KEYRING}] https://deb2.rabbitmq.com/rabbitmq-erlang/ubuntu/${UBUNTU_CODENAME} ${UBUNTU_CODENAME} main
+deb [arch=amd64 signed-by=${KEYRING}] https://deb1.rabbitmq.com/rabbitmq-server/ubuntu/${UBUNTU_CODENAME} ${UBUNTU_CODENAME} main
+deb [arch=amd64 signed-by=${KEYRING}] https://deb2.rabbitmq.com/rabbitmq-server/ubuntu/${UBUNTU_CODENAME} ${UBUNTU_CODENAME} main
 EOF
 apt-get update -y
 

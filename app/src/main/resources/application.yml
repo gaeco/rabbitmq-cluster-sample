@@ -6,9 +6,13 @@ spring:
     name: rabbitmq-cluster-sample
   rabbitmq:
     # Point at all three cluster nodes so the client fails over between them.
-    addresses: localhost:5672,localhost:5673,localhost:5674
-    username: guest
-    password: guest
+    # These are the native (Ubuntu) cluster IPs, each on the default AMQP port.
+    # Override with SPRING_RABBITMQ_ADDRESSES for a different environment.
+    addresses: ${RABBITMQ_ADDRESSES:10.194.178.81:5672,10.194.179.88:5672,10.194.179.89:5672}
+    # guest is loopback-only on the cluster, so use the admin account created by
+    # native-cluster/create-admin.sh. Keep these in sync with cluster.env.
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:change-me-too}
 
 app:
   rabbitmq:

@@ -18,9 +18,9 @@ cluster automatically on boot.
 
 | Node    | IP             | RabbitMQ node name | Role |
 |---------|----------------|--------------------|------|
-| rabbit1 | 10.194.178.93  | `rabbit@rabbit1`   | seed |
-| rabbit2 | 10.194.178.87  | `rabbit@rabbit2`   |      |
-| rabbit3 | 10.194.179.85  | `rabbit@rabbit3`   |      |
+| rabbit1 | 10.194.178.81  | `rabbit@rabbit1`   | seed |
+| rabbit2 | 10.194.179.88  | `rabbit@rabbit2`   |      |
+| rabbit3 | 10.194.179.89  | `rabbit@rabbit3`   |      |
 
 All settings (IPs, hostnames, Erlang cookie, admin credentials) live in
 [`cluster.env`](./cluster.env). **Edit it first** — at minimum change
@@ -106,9 +106,9 @@ You should see all three `rabbit@rabbitN` nodes under *Running Nodes*.
 
 Management UI (log in with the admin user from `cluster.env`):
 
-- http://10.194.178.93:15672
-- http://10.194.178.87:15672
-- http://10.194.179.85:15672
+- http://10.194.178.81:15672
+- http://10.194.179.88:15672
+- http://10.194.179.89:15672
 
 ## Ports that must be open between nodes
 
@@ -139,5 +139,5 @@ make sure your network/security groups allow them.
 - `guest` is loopback-only by design; use the admin user from `create-admin.sh`
   to connect from other machines.
 - To point the Spring Boot app (`app/`) at this cluster, set
-  `spring.rabbitmq.addresses: 10.194.178.93:5672,10.194.178.87:5672,10.194.179.85:5672`
+  `spring.rabbitmq.addresses: 10.194.178.81:5672,10.194.179.88:5672,10.194.179.89:5672`
   and use the admin credentials.
