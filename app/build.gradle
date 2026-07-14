@@ -16,6 +16,14 @@ java {
 
 repositories {
     mavenCentral()
+    maven {
+        name = 'sdl-release'
+        url = 'https://nexus.devops.sec.samsung.net/repository/sdl-releases/'
+    }
+    maven {
+        name = 'sdl-snapshot'
+        url = 'https://nexus.devops.sec.samsung.net/repository/sdl-snapshot/'
+    }
 }
 
 dependencies {
